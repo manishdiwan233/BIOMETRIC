@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <style>
+    body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+    .navbar { background-color: #004085 !important; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+    .nav-link { color: rgba(255,255,255,0.8) !important; font-weight: 500; cursor: pointer; }
+    .nav-link.active { color: #fff !important; border-bottom: 2px solid #fff; }
+    
+    .navbar-nav { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap !important; }
+    .navbar-nav::-webkit-scrollbar { height: 4px; }
+    .navbar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+    
+    .content-section { display: none; padding: 20px 0; }
+    .active-section { display: block; }
+    .card { border-radius: 12px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    .table-container { background: white; border-radius: 12px; padding: 15px; }
+    .sticky-header { position: sticky; top: 0; background: #f0f2f5; z-index: 100; padding: 10px 0; }
+    .btn-group .btn { width: 38px; font-size: 11px; font-weight: bold; }
+    .btn-download { background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; margin-bottom: 15px; transition: 0.3s; }
+    .btn-download:hover { background: #218838; transform: scale(1.05); }
+    #current-date-display { font-size: 0.9rem; color: #555; border-left: 3px solid #004085; padding-left: 8px; margin-top: 5px; }
+    .sub-navbar { background: #e2e8f0; padding: 12px; border-radius: 8px; margin-bottom: 20px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+    .email-container { background: #f8d7da; padding: 12px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #f5c6cb; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="#"><i class="fas fa-university me-2"></i>ASLLP - ATTENDANCE PORTAL</a>
+    <div class="navbar-nav ms-auto flex-row">
+      <!-- Old Student Links -->
+      <a class="nav-link px-3 active" onclick="showSection('dashboard', this)">Dashboard</a>
+      <a class="nav-link px-3" onclick="showSection('attendance', this)">Attendance Mark</a>
+      <a class="nav-link px-3" onclick="showSection('report', this)">Report</a>
+      <a class="nav-link px-3" onclick="showSection('absentee', this)">Long Absentee</a>
+      <a class="nav-link px-3 border-end" onclick="showSection('percentage', this)"><i class="fas fa-percentage me-1"></i>%Leaves</a>
+      
+      <!-- NEW TEACHER LINKS -->
+      <a class="nav-link px-3 text-warning ms-2" onclick="showSection('teacher-attendance', this)"><i class="fas fa-chalkboard-teacher me-1"></i>Teacher Att.</a>
+      <a class="nav-link px-3 text-warning" onclick="showSection('teacher-report', this)"><i class="fas fa-file-contract me-1"></i>Teacher Report</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- =============================== -->
+  <!-- OLD STUDENT SECTIONS -->
+  <!-- =============================== -->
+  <div id="section-dashboard" class="content-section active-section" style="background: #ffffff; padding: 20px; border-radius: 12px;">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <div class="d-flex align-items-center">
+            <img src="https://lh3.googleusercontent.com/d/1O42iiNDImIKO28aZtI2TxcsfVLblo9iJ" alt="Logo" style="height: 60px; width: auto; margin-right: 15px; border-radius: 8px;">
+            <div>
+                <h4 class="fw-bold text-dark m-0">ALFRESCO SOLUTIONS LLP</h4>
+                <p id="current-date-display" class="text-primary mb-0 fw-bold"></p>
+            </div>
+        </div>
+        <div class="text-center">
+            <h5 class="fw-bold text-dark m-0">Mobilizer Wise Attendance Summary</h5>
+            <span class="badge bg-info text-dark">As Per AEBAS Portal</span>
+        </div>
+        <button onclick="downloadDashboard()" class="btn-download no-print"><i class="fas fa-file-image me-2"></i>Download HD Image</button>
+    </div>
+    <div id="capture-area">
+        <div class="table-container shadow-sm mt-3">
+            <table class="table table-hover border align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Mobilizer Name</th>
+                        <th>Batch Details</th>
+                        <th class="text-center">Total Candidates</th>
+                        <th class="text-center">Present Today</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboard-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+
+  <div id="section-attendance" class="content-section">
+    <div class="sticky-header">
+      <div class="row g-2 mb-3">
+        <div class="col-md-4"><input type="date" id="attDate" class="form-control" onchange="loadTodayAttendance()"></div>
+        <div class="col-md-4">
+          <select id="batchFilter" class="form-select" onchange="applyFilters()"><option value="">All Batches</option></select>
+        </div>
+        <div class="col-md-4">
+          <select id="mobFilter" class="form-select" onchange="applyFilters()"><option value="">All Mobilizers</option></select>
+        </div>
+      </div>
+      <input type="text" id="search" onkeyup="applyFilters()" class="form-control" placeholder="Search student name...">
+    </div>
+    <div class="table-container shadow-sm mt-3">
+      <table class="table align-middle">
+        <thead class="table-primary">
+          <tr>
+            <th>Batch</th>
+            <th>Student Name</th>
+            <th>Father / ID</th> 
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="list">
+          <tr><td colspan="4" class="text-center">Loading...</td></tr>
+        </tbody>
+      </table>
+      <button class="btn btn-primary w-100 py-3 mt-3 shadow fw-bold" onclick="sendData()">UPDATE SHEET REGISTER</button>
+    </div>
+  </div>
+
+  <div id="section-report" class="content-section">
+    <div class="card p-3 shadow-sm bg-white">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-primary"><i class="fas fa-file-alt me-2"></i>Monthly Attendance Report</h5>
+        <button class="btn btn-outline-success btn-sm" onclick="loadFullReport()"><i class="fas fa-sync me-2"></i>Refresh Report</button>
+      </div>
+      <div class="table-responsive" style="max-height: 500px;">
+        <table class="table table-sm table-bordered align-middle text-center" style="font-size: 11px;">
+          <thead class="table-dark sticky-top">
+            <tr id="report-header-dates"></tr>
+          </thead>
+          <tbody id="report-table-body">
+            <tr><td colspan="10" class="p-4 text-muted">Click Refresh to load Excel data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="section-absentee" class="content-section">
+    <div class="card p-3 shadow-sm bg-white border-start border-danger border-5">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-danger m-0"><i class="fas fa-exclamation-triangle me-2"></i>Students Absent for More Than 3 Days</h5>
+        <span id="absentee-count" class="badge bg-dark fs-6 px-3 py-2 shadow-sm">Total Candidates: 0</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle border" id="absenteeTable">
+          <thead class="table-danger">
+            <tr>
+              <th>Student Name</th>
+              <th>Mobilizer</th>
+              <th>Father / ID</th>
+              <th>Mobile No</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="absentee-table-body">
+            <tr><td colspan="5" class="text-center">Loading list...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="section-percentage" class="content-section">
+    <div class="card p-3 shadow-sm bg-white border-start border-primary border-5">
+      <div class="email-container d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fas fa-envelope-open-text text-danger fs-5"></i>
+          <span class="fw-bold text-danger">Send Defaulters List (< 70%):</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 500px;">
+          <input type="email" id="targetReceiverEmail" class="form-control form-control-sm" placeholder="Enter recipient email ID...">
+        </div>
+        <div>
+          <button id="mailBtn" class="btn btn-danger btn-sm fw-bold shadow-sm" onclick="triggerDefaulterEmail()">
+            <i class="fas fa-paper-plane me-2"></i>Send Automated Mail
+          </button>
+        </div>
+      </div>
+
+      <div class="sub-navbar d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold text-primary mb-0"><i class="fas fa-filter me-1"></i>Filter By Attendance %:</label>
+          <select id="percentageFilterPicker" class="form-select form-select-sm" style="width:160px;" onchange="filterTableByPercentage()">
+            <option value="ALL">Show All Candidates</option>
+            <option value="10">10% or Less Present</option>
+            <option value="20">20% or Less Present</option>
+            <option value="30">30% or Less Present</option>
+            <option value="40">40% or Less Present</option>
+            <option value="50">50% or Less Present</option>
+            <option value="60">60% or Less Present</option>
+            <option value="70">70% or Less Present</option>
+            <option value="75">Less than 75% (Shortage)</option>
+            <option value="80">80% or Less Present</option>
+            <option value="90">90% or Less Present</option>
+            <option value="100">100% Present Only</option>
+          </select>
+        </div>
+
+        <div>
+          <button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="exportFilteredDataToExcel()">
+            <i class="fas fa-file-excel me-2"></i>Export Filtered to Excel
+          </button>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 border-start ps-3 border-secondary">
+          <label class="fw-bold text-dark mb-0">Bulk Mark Date:</label>
+          <input type="date" id="leaveDate" class="form-control form-control-sm" style="width:140px;">
+          <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="handleBulkLeave('Sunday')">Sunday</button>
+          <button class="btn btn-info btn-sm fw-bold text-dark" onclick="handleBulkLeave('Holiday')">Holiday</button>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-primary m-0"><i class="fas fa-chart-pie me-2"></i>Candidate Percentage Analytics</h5>
+        <span class="badge bg-dark">Total Tenure Size: 90 Days</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle border" id="percentageAnalyticsTable">
+          <thead class="table-primary">
+            <tr>
+              <th>Student Name</th>
+              <th>Batch</th>
+              <th class="text-center bg-light text-success">Present (P) Count</th>
+              <th class="text-center text-muted">Sundays (Excluded)</th>
+              <th class="text-center text-muted">Holidays (Excluded)</th>
+              <th class="text-center fw-bold text-primary bg-light">Strict Attendance %</th>
+              <th style="width: 25%;">Progress Scale</th>
+            </tr>
+          </thead>
+          <tbody id="percentage-table-body">
+            <tr><td colspan="7" class="text-center text-muted">Loading analytics tracker records...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================== -->
+  <!-- NEW TEACHER SECTIONS -->
+  <!-- =============================== -->
+
+  <div id="section-teacher-attendance" class="content-section">
+    <div class="card p-3 shadow-sm bg-white border-start border-warning border-5">
+      <h4 class="text-warning fw-bold mb-3"><i class="fas fa-chalkboard-teacher me-2"></i>Teacher Attendance Register</h4>
+      
+      <!-- Sub Navbar for Teacher -->
+      <div class="sub-navbar bg-light d-flex flex-wrap align-items-center justify-content-between gap-3 border mb-3">
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold text-dark mb-0">Select Date:</label>
+          <input type="date" id="teacherAttDate" class="form-control form-control-sm border-warning" style="width:150px;" onchange="loadTeacherAttendance()">
+        </div>
+        <div class="d-flex align-items-center gap-2 border-start ps-3 border-secondary">
+          <label class="fw-bold text-dark mb-0">Bulk Action:</label>
+          <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="handleTeacherBulkLeave('Sunday')">Mark Sunday</button>
+          <button class="btn btn-info btn-sm fw-bold text-dark" onclick="handleTeacherBulkLeave('Holiday')">Mark Holiday</button>
+          <button class="btn btn-danger btn-sm fw-bold text-white" onclick="handleTeacherBulkLeave('Leave')">Mark Leave</button>
+        </div>
+      </div>
+
+      <input type="text" id="teacherSearch" onkeyup="applyTeacherFilters()" class="form-control mb-3" placeholder="Search Teacher Name or Dept...">
+
+      <div class="table-responsive">
+        <table class="table align-middle border table-hover">
+          <thead class="table-warning">
+            <tr>
+              <th>Emp ID</th>
+              <th>Teacher Name & Dept</th>
+              <th class="text-center">Status (P/A/L)</th>
+            </tr>
+          </thead>
+          <tbody id="teacher-list">
+            <tr><td colspan="3" class="text-center">Loading Teachers...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-warning text-dark w-100 py-3 mt-3 shadow fw-bold fs-5" onclick="sendTeacherData()">UPDATE TEACHER REGISTER</button>
+    </div>
+  </div>
+
+  <!-- UPDATED TEACHER REPORT (WITH MONTH FILTER) -->
+  <div id="section-teacher-report" class="content-section">
+    <div class="card p-3 shadow-sm bg-white border-start border-warning border-5">
+      
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+          <h5 class="fw-bold text-warning text-dark m-0"><i class="fas fa-file-contract me-2"></i>Teacher Report</h5>
+          
+          <!-- Month Filter Dropdown -->
+          <div class="input-group input-group-sm" style="width: auto;">
+            <span class="input-group-text bg-warning text-dark fw-bold border-warning"><i class="fas fa-calendar-alt"></i></span>
+            <select id="teacherMonthFilter" class="form-select border-warning fw-bold" onchange="renderTeacherReportTable()">
+              <option value="ALL">All Months (Overall Summary)</option>
+            </select>
+          </div>
+        </div>
+        
+        <button class="btn btn-outline-warning text-dark btn-sm fw-bold" onclick="loadTeacherReport()"><i class="fas fa-sync me-2"></i>Refresh Data</button>
+      </div>
+
+      <div class="table-responsive" style="max-height: 500px;">
+        <table class="table table-sm table-bordered align-middle text-center" style="font-size: 11px;">
+          <thead class="table-dark sticky-top">
+            <tr id="teacher-report-header"></tr>
+          </thead>
+          <tbody id="teacher-report-body">
+            <tr><td colspan="10" class="p-4 text-muted">Click Refresh to load teacher data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // VARIABLES
+  let students = [];
+  let todayData = [];
+  let globalReportData = []; 
+  
+  let teachers = [];
+  let teacherTodayData = [];
+  
+  // NEW: Store raw teacher report data for filtering
+  let globalTeacherReportData = null; 
+  const monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  window.onload = () => {
+      displayCurrentDate();
+      document.getElementById('attDate').valueAsDate = new Date();
+      document.getElementById('leaveDate').valueAsDate = new Date();
+      document.getElementById('teacherAttDate').valueAsDate = new Date(); // Teacher Date
+
+      // Load Students
+      google.script.run.withSuccessHandler(data => {
+        students = data;
+        populateDropdowns();
+        loadTodayAttendance();
+      }).getStudentList();
+
+      // Load Teachers
+      google.script.run.withSuccessHandler(data => {
+        teachers = data;
+      }).getTeacherList();
+  };
+
+  function showSection(id, element) {
+    document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active-section'));
+    document.getElementById('section-' + id).classList.add('active-section');
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    element.classList.add('active');
+    
+    if(id === 'dashboard') updateDashboard();
+    if(id === 'report') loadFullReport(); 
+    if(id === 'absentee') loadLongAbsentees(); 
+    if(id === 'percentage') loadPercentageAnalysis();
+    
+    if(id === 'teacher-attendance') loadTeacherAttendance();
+    if(id === 'teacher-report') loadTeacherReport();
+  }
+
+  // ==========================================
+  // OLD STUDENT SCRIPT (UNTOUCHED LOGIC)
+  // ==========================================
+  function populateDropdowns() {
+    let batches = [...new Set(students.map(s => s.batch))].sort();
+    let mobilizers = [...new Set(students.map(s => s.mobilizer))].sort();
+    document.getElementById('batchFilter').innerHTML = '<option value="">All Batches</option>' + batches.map(b => `<option value="${b}">${b}</option>`).join('');
+    document.getElementById('mobFilter').innerHTML = '<option value="">All Mobilizers</option>' + mobilizers.map(m => `<option value="${m}">${m}</option>`).join('');
+  }
+
+  function loadTodayAttendance() {
+    let date = document.getElementById('attDate').value;
+    google.script.run.withSuccessHandler(data => {
+      todayData = data;
+      updateDashboard();
+      applyFilters();
+    }).getTodayStats(date);
+  }
+
+  function updateDashboard() {
+    let mobStats = {};
+    let grandTotalCandidates = 0;
+    let grandTotalPresent = 0;
+    
+    students.forEach(s => {
+      if (!mobStats[s.mobilizer]) mobStats[s.mobilizer] = { total: 0, batches: {}, present: 0 };
+      mobStats[s.mobilizer].total++;
+      mobStats[s.mobilizer].batches[s.batch] = (mobStats[s.mobilizer].batches[s.batch] || 0) + 1;
+      grandTotalCandidates++;
+    });
+
+    todayData.forEach(item => {
+      let mob = item.mobilizer;
+      let status = item.status;
+      if(mobStats[mob] && status === 'P') {
+        mobStats[mob].present++;
+        grandTotalPresent++;
+      }
+    });
+
+    let html = "";
+    for (let mob in mobStats) {
+      let batchDetails = Object.keys(mobStats[mob].batches).map(b => `<b>${b}:</b> ${mobStats[mob].batches[b]}`).join(" | ");
+      html += `<tr>
+        <td><i class="fas fa-user-tie me-2 text-primary"></i>${mob}</td>
+        <td><small>${batchDetails}</small></td>
+        <td class="text-center fw-bold text-primary">${mobStats[mob].total}</td>
+        <td class="text-center text-success fw-bold">${mobStats[mob].present}</td>
+      </tr>`;
+    }
+
+    document.getElementById('dashboard-table-body').innerHTML = html || "<tr><td colspan='4' class='text-center'>No Data Found</td></tr>";
+
+    if (html) {
+      let footerHtml = `
+        <tr class="table-secondary fw-bold">
+          <td colspan="2" class="text-end">GRAND TOTAL:</td>
+          <td class="text-center text-primary" style="font-size: 1.1rem;">${grandTotalCandidates}</td>
+          <td class="text-center text-success" style="font-size: 1.1rem;">${grandTotalPresent}</td>
+        </tr>`;
+      let table = document.querySelector("#section-dashboard table");
+      let oldFooter = table.querySelector("tfoot");
+      if(oldFooter) oldFooter.remove();
+      let footer = table.createTFoot();
+      footer.innerHTML = footerHtml;
+    }
+  }
+
+  function applyFilters() {
+    let batchVal = document.getElementById('batchFilter').value;
+    let mobVal = document.getElementById('mobFilter').value;
+    let searchVal = document.getElementById('search').value.toLowerCase();
+
+    let filtered = students.filter(s => {
+      return (batchVal === "" || s.batch === batchVal) && 
+             (mobVal === "" || s.mobilizer === mobVal) && 
+             (s.name.toLowerCase().includes(searchVal));
+    });
+    render(filtered);
+  }
+
+  function render(dataList) {
+    let html = dataList.map(s => {
+        let idx = students.indexOf(s);
+        let existingRecord = todayData.find(record => record.name === s.name);
+        let currentStatus = existingRecord ? existingRecord.status : "";
+
+        return `<tr>
+            <td><span class="badge bg-secondary">${s.batch}</span></td>
+            <td class="fw-bold">${s.name}</td>
+            <td><small>ID: ${s.kp_id}<br>C/O: ${s.care_of}</small></td>
+            <td class="text-center">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="s_${idx}" id="p_${idx}" value="P" ${currentStatus === 'P' ? 'checked' : ''}>
+                    <label class="btn btn-outline-success" for="p_${idx}">P</label>
+                    <input type="radio" class="btn-check" name="s_${idx}" id="a_${idx}" value="A" ${currentStatus === 'A' ? 'checked' : ''}>
+                    <label class="btn btn-outline-danger" for="a_${idx}">A</label>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    document.getElementById('list').innerHTML = html || "<tr><td colspan='4' class='text-center'>No Students</td></tr>";
+  }
+
+  function sendData() {
+    const btn = event.target; 
+    let date = document.getElementById('attDate').value;
+    let payload = [];
+    let missingAny = false;
+
+    students.forEach((s, i) => {
+        let selected = document.querySelector(`input[name="s_${i}"]:checked`);
+        if (!selected) { missingAny = true; } 
+        else { payload.push({ name: s.name, status: selected.value }); }
+    });
+
+    if (missingAny && !confirm("Kuch students ki attendance blank hai. Baki bache data save karein?")) return;
+
+    btn.disabled = true; btn.innerText = "Syncing...";
+    google.script.run.withSuccessHandler(res => {
+        alert(res); btn.disabled = false; btn.innerText = "UPDATE SHEET REGISTER";
+        loadTodayAttendance();
+    }).updateRegister(payload, date);
+  }
+
+  function loadFullReport() {
+    const tableBody = document.getElementById('report-table-body');
+    tableBody.innerHTML = '<tr><td colspan="10" class="p-4 text-primary">Loading Data from Excel...</td></tr>';
+    
+    google.script.run.withSuccessHandler(data => {
+      if (typeof data === 'string') { alert(data); return; }
+      let headerHtml = `<th class="bg-dark text-white" style="position:sticky; left:0; z-index:1001;">Student Name</th>`;
+      data.dates.forEach(d => { if(d) headerHtml += `<th class="small px-1">${d}</th>`; });
+      headerHtml += `<th class="bg-success text-white">TOTAL P</th>`;
+      document.getElementById('report-header-dates').innerHTML = headerHtml;
+
+      let bodyHtml = "";
+      data.students.forEach(s => {
+        bodyHtml += `<tr><td class="fw-bold text-start bg-light" style="position:sticky; left:0; z-index:1000; min-width:120px;">${s.name}<br><small class="text-muted">${s.batch}</small></td>`;
+        s.attendance.forEach(status => {
+          let color = status === 'P' ? 'text-success fw-bold' : (status === 'A' ? 'text-danger fw-bold' : (status === 'Sunday' || status === 'S' ? 'text-warning' : ''));
+          bodyHtml += `<td class="${color}">${status || '-'}</td>`;
+        });
+        bodyHtml += `<td class="bg-success text-white fw-bold">${s.totalPresent}</td></tr>`;
+      });
+      tableBody.innerHTML = bodyHtml;
+    }).getFullReportData();
+  }
+
+  function loadLongAbsentees() {
+    const tableBody = document.getElementById('absentee-table-body');
+    const countDisplay = document.getElementById('absentee-count'); 
+    
+    tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-primary">Scanning records...</td></tr>';
+    if(countDisplay) countDisplay.innerText = "Total Candidates: Calculating...";
+    
+    google.script.run.withSuccessHandler(data => {
+      if (!data || !data.students) return;
+      let bodyHtml = "";
+      let absenteeCount = 0; 
+      
+      data.students.forEach(s => {
+        let activeAttendance = s.attendance.filter(status => status === 'P' || status === 'A');
+        let lastThree = activeAttendance.slice(-3);
+        let isLongAbsent = lastThree.length >= 3 && lastThree.every(status => status === 'A');
+
+        if (isLongAbsent) {
+          absenteeCount++; 
+          let totalAbsents = s.attendance.filter(status => status === 'A').length;
+          let stdDetail = students.find(std => std.name === s.name) || {};
+          
+          bodyHtml += `<tr>
+            <td class="fw-bold text-danger">${s.name}<br><small class="badge bg-secondary">${s.batch}</small></td>
+            <td>${s.mobilizer || 'N/A'}</td>
+            <td>ID: <b>${s.kp_id}</b></td>
+            <td><a href="tel:${stdDetail.contact}" class="btn btn-sm btn-outline-success"><i class="fas fa-phone-alt me-1"></i>${stdDetail.contact || 'N/A'}</a></td>
+            <td class="text-center"><span class="badge bg-danger p-2">${totalAbsents} Days Absent</span></td>
+          </tr>`;
+        }
+      });
+      
+      tableBody.innerHTML = bodyHtml || "<tr><td colspan='5' class='text-center p-4 text-success'>No student found with 3+ continuous absents.</td></tr>";
+      if(countDisplay) { countDisplay.innerHTML = `<i class="fas fa-users me-1"></i> Total Candidates: ${absenteeCount}`; }
+    }).getFullReportData();
+  }
+
+  function loadPercentageAnalysis() {
+    const pTableBody = document.getElementById('percentage-table-body');
+    pTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-primary"><i class="fas fa-spinner fa-spin me-2"></i>Evaluating Strict Percentile Matrix...</td></tr>';
+    
+    google.script.run.withSuccessHandler(data => {
+      if (!data || !data.students) {
+        pTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error: Google Sheet se data nahi mila!</td></tr>';
+        return;
+      }
+      globalReportData = data.students; 
+      document.getElementById('percentageFilterPicker').value = "ALL"; 
+      renderPercentageTable(globalReportData);
+    }).getFullReportData();
+  }
+
+  function renderPercentageTable(studentList) {
+    const pTableBody = document.getElementById('percentage-table-body');
+    let html = "";
+    const totalCourseDays = 90;
+
+    studentList.forEach(s => {
+      let P = s.totalPresent || 0;
+      let Sun = s.totalSunday || 0;
+      let Hol = s.totalHoliday || 0;
+
+      let calculatedPercentage = (P / totalCourseDays) * 100;
+      if(calculatedPercentage > 100) calculatedPercentage = 100;
+      if(calculatedPercentage < 0) calculatedPercentage = 0;
+
+      let finalPercentageStr = calculatedPercentage.toFixed(2);
+      
+      let progressColor = "bg-danger";
+      if(calculatedPercentage >= 75) progressColor = "bg-success";
+      else if(calculatedPercentage >= 50) progressColor = "bg-warning text-dark";
+
+      html += `<tr>
+        <td class="fw-bold text-dark candidate-name">${s.name}</td>
+        <td><span class="badge bg-secondary">${s.batch}</span></td>
+        <td class="text-center bg-light text-success fw-bold" style="font-size:1.05rem;">${P} Days</td>
+        <td class="text-center text-muted">${Sun}</td>
+        <td class="text-center text-muted">${Hol}</td>
+        <td class="text-center fw-bold text-primary bg-light" style="font-size:1.1rem;">${finalPercentageStr}%</td>
+        <td>
+          <div class="progress" style="height: 18px;">
+            <div class="progress-bar ${progressColor} fw-bold" role="progressbar" style="width: ${calculatedPercentage}%" aria-valuenow="${calculatedPercentage}" aria-valuemin="0" aria-valuemax="100">${Math.round(calculatedPercentage)}%</div>
+          </div>
+        </td>
+      </tr>`;
+    });
+    
+    pTableBody.innerHTML = html || "<tr><td colspan='7' class='text-center text-muted'>Is filter criteria range me koi candidate nahi mila.</td></tr>";
+  }
+
+  function filterTableByPercentage() {
+    let filterValue = document.getElementById('percentageFilterPicker').value;
+    if (filterValue === "ALL") { renderPercentageTable(globalReportData); return; }
+
+    let targetPercent = parseFloat(filterValue);
+    const totalCourseDays = 90;
+
+    let filteredList = globalReportData.filter(s => {
+      let P = s.totalPresent || 0;
+      let calculatedPercentage = (P / totalCourseDays) * 100;
+      
+      if (filterValue === "100") { return calculatedPercentage === 100; } 
+      else if (filterValue === "75") { return calculatedPercentage < 75; } 
+      else { return calculatedPercentage <= targetPercent; }
+    });
+
+    renderPercentageTable(filteredList);
+  }
+
+  function exportFilteredDataToExcel() {
+    let filterValue = document.getElementById('percentageFilterPicker').value;
+    const totalCourseDays = 90;
+
+    if (!globalReportData || globalReportData.length === 0) {
+      alert("Kripya thoda rukiye, server se raw data process ho rha hai...!");
+      return;
+    }
+
+    let datasetToExport = globalReportData;
+    if (filterValue !== "ALL") {
+      let targetPercent = parseFloat(filterValue);
+      datasetToExport = globalReportData.filter(s => {
+        let P = s.totalPresent || 0;
+        let calculatedPercentage = (P / totalCourseDays) * 100;
+        
+        if (filterValue === "100") { return calculatedPercentage === 100; } 
+        else if (filterValue === "75") { return calculatedPercentage < 75; } 
+        else { return calculatedPercentage <= targetPercent; }
+      });
+    }
+
+    if (datasetToExport.length === 0) {
+      alert("Is applied dropdown percentage condition me koi bhi candidate export karne ke liye valid nahi mila!");
+      return;
+    }
+
+    let excelRows = [];
+    excelRows.push(["Candidate Name", "Batch Details", "Present (P) Count", "Sundays Count", "Holidays Count", "Strict Attendance %"]);
+
+    datasetToExport.forEach(s => {
+      let P = s.totalPresent || 0;
+      let Sun = s.totalSunday || 0;
+      let Hol = s.totalHoliday || 0;
+      let calculatedPercentage = (P / totalCourseDays) * 100;
+      if(calculatedPercentage > 100) calculatedPercentage = 100;
+      if(calculatedPercentage < 0) calculatedPercentage = 0;
+
+      excelRows.push([
+        s.name, s.batch, P + " Days", Sun, Hol, calculatedPercentage.toFixed(2) + "%"
+      ]);
+    });
+
+    let wb = XLSX.utils.book_new();
+    let ws = XLSX.utils.aoa_to_sheet(excelRows);
+    ws['!cols'] = [{wch:26}, {wch:15}, {wch:18}, {wch:15}, {wch:15}, {wch:22}];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance Sheet Summary");
+    
+    let finalFileName = `Filtered_Attendance_${filterValue}Percent_Summary.xlsx`;
+    if(filterValue === "ALL") finalFileName = "All_Candidates_Attendance_Report.xlsx";
+    if(filterValue === "75") finalFileName = "Shortage_Attendance_Report.xlsx";
+
+    XLSX.writeFile(wb, finalFileName);
+  }
+
+  function handleBulkLeave(leaveType) {
+    let chosenDate = document.getElementById('leaveDate').value;
+    if(!chosenDate) { alert("Kripya pehle bulk mark karne ke liye date select karein!"); return; }
+    
+    if(confirm(`Kya aap selected date (${chosenDate}) ko sabhi candidates ke liye "${leaveType}" mark karna chahte hain?`)) {
+      google.script.run.withSuccessHandler(response => {
+         alert(response);
+         if(response.includes("Success")) loadPercentageAnalysis();
+      }).markBulkLeave(chosenDate, leaveType);
+    }
+  }
+
+  function triggerDefaulterEmail() {
+    const emailInput = document.getElementById('targetReceiverEmail').value.trim();
+    const btn = document.getElementById('mailBtn');
+    
+    if(!emailInput) { alert("Kripya pehle wo email id enter karein jahan report bhejna chahte hain!"); return; }
+    
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Processing Mail...`;
+    
+    google.script.run.withSuccessHandler(response => {
+      alert(response);
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fas fa-paper-plane me-2"></i>Send Automated Mail`;
+    }).sendDefaulterMail(emailInput);
+  }
+
+  function downloadDashboard() {
+      const element = document.getElementById('section-dashboard');
+      const btn = document.querySelector('.btn-download');
+      btn.style.display = 'none';
+      html2canvas(element, { scale: 3, useCORS: true, allowTaint: true, backgroundColor: "#ffffff" }).then(canvas => {
+          const link = document.createElement('a');
+          const today = new Date().toLocaleDateString('en-IN').replace(/\//g, '-');
+          link.href = canvas.toDataURL("image/jpeg", 1.0);
+          link.download = `Attendance_Summary_${today}.jpg`;
+          link.click();
+          btn.style.display = 'block';
+      });
+  }
+
+  function displayCurrentDate() {
+      const now = new Date();
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      document.getElementById('current-date-display').innerText = "Date: " + now.toLocaleDateString('en-IN', options);
+  }
+
+  // ==========================================
+  // NEW TEACHER SCRIPT LOGIC (WITH MONTH SUMMARY)
+  // ==========================================
+  
+  function loadTeacherAttendance() {
+    let date = document.getElementById('teacherAttDate').value;
+    google.script.run.withSuccessHandler(data => {
+      teacherTodayData = data;
+      applyTeacherFilters();
+    }).getTeacherTodayStats(date);
+  }
+
+  function applyTeacherFilters() {
+    let searchVal = document.getElementById('teacherSearch').value.toLowerCase();
+    
+    let filtered = teachers.filter(t => {
+      return t.name.toLowerCase().includes(searchVal) || 
+             t.department.toLowerCase().includes(searchVal);
+    });
+    
+    let html = filtered.map((t, idx) => {
+        let existingRecord = teacherTodayData.find(record => record.name === t.name);
+        let currentStatus = existingRecord ? existingRecord.status.toString().trim() : "";
+        
+        // Time nikaalne ka logic
+        let isPresent = currentStatus.startsWith('P');
+        let timeStr = isPresent && currentStatus.includes('-') ? currentStatus.split('-')[1].trim() : "";
+        let isA = currentStatus === 'A';
+        let isL = currentStatus === 'L' || currentStatus === 'Leave';
+
+        return `<tr>
+            <td><span class="badge bg-secondary">ID: ${t.emp_id}</span></td>
+            <td><div class="fw-bold">${t.name}</div><small class="text-muted">${t.department}</small></td>
+            <td class="text-center">
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="t_${idx}" id="tp_${idx}" value="P" ${isPresent ? 'checked' : ''} onchange="toggleTeacherTime(${idx})">
+                        <label class="btn btn-outline-success" for="tp_${idx}">P</label>
+                        
+                        <input type="radio" class="btn-check" name="t_${idx}" id="ta_${idx}" value="A" ${isA ? 'checked' : ''} onchange="toggleTeacherTime(${idx})">
+                        <label class="btn btn-outline-danger" for="ta_${idx}">A</label>
+                        
+                        <input type="radio" class="btn-check" name="t_${idx}" id="tl_${idx}" value="L" ${isL ? 'checked' : ''} onchange="toggleTeacherTime(${idx})">
+                        <label class="btn btn-outline-warning text-dark" for="tl_${idx}">L</label>
+                    </div>
+                    <input type="time" id="tTime_${idx}" class="form-control form-control-sm border-success text-success fw-bold" style="width: 105px; ${isPresent ? '' : 'display:none;'}" value="${timeStr}">
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    
+    document.getElementById('teacher-list').innerHTML = html || "<tr><td colspan='3' class='text-center py-4'>No Teachers Found</td></tr>";
+  }
+
+
+  // Naya Function: Time Input ko Show/Hide karne ke liye
+  function toggleTeacherTime(idx) {
+      let isP = document.getElementById('tp_' + idx).checked;
+      let timeInput = document.getElementById('tTime_' + idx);
+      
+      if(isP) {
+          timeInput.style.display = 'inline-block';
+          // Agar time pehle se nahi bhara hai, toh current time laga dega
+          if(!timeInput.value) {
+              let now = new Date();
+              timeInput.value = now.toTimeString().substring(0,5);
+          }
+      } else {
+          timeInput.style.display = 'none';
+          timeInput.value = ""; // Agar A ya L lagaya toh time clear kar dega
+      }
+  }
+
+
+
+  function sendTeacherData() {
+    const btn = event.target; 
+    let date = document.getElementById('teacherAttDate').value;
+    let payload = [];
+    
+    teachers.forEach((t, i) => {
+        let selected = document.querySelector(`input[name="t_${i}"]:checked`);
+        if (selected) {
+          let finalStatus = selected.value;
+          // Agar P hai toh time bhi sath mein jod dein
+          if (finalStatus === 'P') {
+              let timeVal = document.getElementById(`tTime_${i}`).value;
+              if (timeVal) {
+                  finalStatus = `P - ${timeVal}`;
+              }
+          }
+          payload.push({ name: t.name, status: finalStatus });
+        }
+    });
+
+    btn.disabled = true; btn.innerText = "Syncing Teachers...";
+    google.script.run.withSuccessHandler(res => {
+        alert(res); 
+        btn.disabled = false; btn.innerText = "UPDATE TEACHER REGISTER";
+        loadTeacherAttendance();
+    }).updateTeacherRegister(payload, date);
+  }
+
+  function handleTeacherBulkLeave(leaveType) {
+    let chosenDate = document.getElementById('teacherAttDate').value;
+    if(!chosenDate) { alert("Kripya pehle bulk mark karne ke liye date select karein!"); return; }
+    
+    if(confirm(`Kya aap ${chosenDate} ko sabhi teachers ke liye "${leaveType}" mark karna chahte hain?`)) {
+      google.script.run.withSuccessHandler(response => {
+         alert(response);
+         loadTeacherAttendance();
+      }).markTeacherBulkLeave(chosenDate, leaveType);
+    }
+  }
+
+  // --- NEW: ADVANCED TEACHER REPORT WITH MONTH FILTERING ---
+
+  function loadTeacherReport() {
+    const tableBody = document.getElementById('teacher-report-body');
+    tableBody.innerHTML = '<tr><td colspan="10" class="p-4 text-warning fw-bold"><i class="fas fa-spinner fa-spin me-2"></i> Fetching Live Teacher Data...</td></tr>';
+    
+    google.script.run
+      .withFailureHandler(err => {
+        alert("System Error: " + err.message);
+        tableBody.innerHTML = '<tr><td colspan="10" class="p-4 text-danger">Data load hone mein error aayi.</td></tr>';
+      })
+      .withSuccessHandler(data => {
+        if (typeof data === 'string') { 
+          alert(data); 
+          tableBody.innerHTML = `<tr><td colspan="10" class="p-4 text-danger">${data}</td></tr>`;
+          return; 
+        }
+        
+        globalTeacherReportData = data; 
+        
+        // Extract Unique Months from data (Format DD/MM)
+        let monthSet = new Set();
+        data.dates.forEach(d => {
+          if (d && d.includes('/')) {
+            let parts = d.split('/');
+            if(parts.length > 1) { monthSet.add(parts[1]); }
+          }
+        });
+
+        // Update Dropdown options
+        let monthSelect = document.getElementById('teacherMonthFilter');
+        monthSelect.innerHTML = '<option value="ALL">All Months (Overall Summary)</option>';
+        
+        let sortedMonths = Array.from(monthSet).sort((a,b) => parseInt(a) - parseInt(b));
+        sortedMonths.forEach(m => {
+          monthSelect.innerHTML += `<option value="${m}">${monthNames[parseInt(m)] || 'Month '+m}</option>`;
+        });
+        
+        // Render Table based on default Selection
+        renderTeacherReportTable();
+      }).getTeacherFullReportData();
+  }
+
+  function renderTeacherReportTable() {
+    if (!globalTeacherReportData) return;
+    let data = globalTeacherReportData;
+    let selectedMonth = document.getElementById('teacherMonthFilter').value;
+    
+    // Find matching date indices for selected month
+    let filteredIndices = [];
+    data.dates.forEach((d, i) => {
+      if (selectedMonth === "ALL") {
+        filteredIndices.push(i);
+      } else {
+        if (d && d.includes('/')) {
+          let parts = d.split('/');
+          if (parts[1] === selectedMonth) {
+            filteredIndices.push(i);
+          }
+        }
+      }
+    });
+
+    // Build Table Header
+    let headerHtml = `<th class="bg-dark text-white" style="position:sticky; left:0; z-index:1001; min-width: 150px;">Teacher Name & Dept</th>`;
+    filteredIndices.forEach(i => {
+       headerHtml += `<th class="small px-2">${data.dates[i]}</th>`;
+    });
+    headerHtml += `<th class="bg-success text-white">Present (P)</th>`;
+    headerHtml += `<th class="bg-danger text-white">Absent (A)</th>`;
+    headerHtml += `<th class="bg-warning text-dark">Leave (L)</th>`;
+    headerHtml += `<th class="bg-info text-dark">Sun/Hol (S/H)</th>`;
+    document.getElementById('teacher-report-header').innerHTML = headerHtml;
+
+    // Build Table Body
+    let bodyHtml = "";
+    if (data.teachers && data.teachers.length > 0) {
+      data.teachers.forEach(t => {
+        bodyHtml += `<tr><td class="fw-bold text-start bg-light" style="position:sticky; left:0; z-index:1000;">${t.name}<br><small class="text-muted">${t.department}</small></td>`;
+        
+        let p = 0, a = 0, l = 0, sh = 0;
+        
+        filteredIndices.forEach(idx => {
+          let status = t.attendance[idx] || '';
+          
+          let color = status === 'P' ? 'text-success fw-bold' : 
+                     (status === 'A' ? 'text-danger fw-bold' : 
+                     ((status === 'L' || status === 'Leave') ? 'text-warning fw-bold' : 
+                     ((status === 'S' || status === 'Sunday' || status === 'H' || status === 'Holiday') ? 'text-info fw-bold' : 'text-muted')));
+          
+          bodyHtml += `<td class="${color}">${status || '-'}</td>`;
+          
+          // Custom Calculation per filtered month
+          if (status === 'P') p++;
+          else if (status === 'A') a++;
+          else if (status === 'L' || status === 'Leave') l++;
+          else if (status === 'S' || status === 'Sunday' || status === 'H' || status === 'Holiday') sh++;
+        });
+        
+        bodyHtml += `<td class="bg-success text-white fw-bold fs-6">${p}</td>`;
+        bodyHtml += `<td class="bg-danger text-white fw-bold fs-6">${a}</td>`;
+        bodyHtml += `<td class="bg-warning text-dark fw-bold fs-6">${l}</td>`;
+        bodyHtml += `<td class="bg-info text-dark fw-bold fs-6">${sh}</td></tr>`;
+      });
+    } else {
+      bodyHtml = '<tr><td colspan="10" class="p-4 text-muted">Koi Report Data nahi mila. Kripya sheet mein data check karein.</td></tr>';
+    }
+    
+    document.getElementById('teacher-report-body').innerHTML = bodyHtml;
+  }
+</script>
+</body>
+</html>
